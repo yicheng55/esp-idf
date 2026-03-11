@@ -156,6 +156,14 @@ menu "Ethernet"
                 The KSZ8851SNL is a single-chip Fast Ethernet controller consisting of
                 a 10/100 physical layer transceiver (PHY), a MAC, and a Serial Peripheral Interface (SPI).
                 Select this to enable KSZ8851SNL driver.
+
+        config ETH_SPI_ETHERNET_DM9058
+            bool "Use DM9058"
+            help
+                DM9058 is a fast Ethernet controller with an SPI interface.
+                It's also integrated with a 10/100M PHY and MAC.
+                DM9058 is an enhanced version of DM9051 with improved features.
+                Select this to enable DM9058 driver.
     endif # ETH_USE_SPI_ETHERNET
 
     menuconfig ETH_USE_OPENETH

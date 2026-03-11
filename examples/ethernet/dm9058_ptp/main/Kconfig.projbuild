@@ -1,0 +1,40 @@
+menu "Example Configuration"
+    config EXAMPLE_ETH_DEINIT_AFTER_S
+        int "Stop and deinit Ethernet after elapsing number of secs"
+        range -1 300
+        default -1
+        help
+            This option is for demonstration purposes only to demonstrate deinitialization of the Ethernet driver.
+            Set to -1 to not deinitialize.
+
+    config EXAMPLE_USE_PTP
+        bool "Enable PTP (Precision Time Protocol) for DM9058"
+        default y
+        depends on EXAMPLE_USE_DM9058
+        help
+            Enable IEEE 1588 PTP time synchronization when using DM9058 Ethernet controller.
+            This allows precise time synchronization between network devices.
+
+    choice EXAMPLE_PTP_TRANSPORT
+        prompt "PTP Transport Layer"
+        depends on EXAMPLE_USE_PTP
+        default EXAMPLE_PTP_TRANSPORT_L2
+        help
+            Select the transport layer for PTP packets.
+
+        config EXAMPLE_PTP_TRANSPORT_L2
+            bool "Ethernet L2 (EtherType 0x88F7)"
+        config EXAMPLE_PTP_TRANSPORT_UDP_IPV4
+            bool "UDP over IPv4"
+        config EXAMPLE_PTP_TRANSPORT_UDP_IPV6
+            bool "UDP over IPv6"
+    endchoice
+
+    config EXAMPLE_PTP_SYNC_INTERVAL_MS
+        int "PTP Sync Interval (ms)"
+        depends on EXAMPLE_USE_PTP
+        range 100 10000
+        default 1000
+        help
+            Interval in milliseconds between PTP time sync operations.
+endmenu
