@@ -53,6 +53,11 @@ if(CONFIG_ETH_ENABLED)
                          "src/spi/ksz8851snl/esp_eth_phy_ksz8851snl.c")
     endif()
 
+    if(CONFIG_ETH_SPI_ETHERNET_DM9058)
+        list(APPEND srcs "src/spi/dm9058/esp_eth_mac_dm9058.c"
+                         "src/spi/dm9058/esp_eth_phy_dm9058.c")
+    endif()
+
     if(CONFIG_ETH_USE_OPENETH)
         list(APPEND srcs "src/openeth/esp_eth_mac_openeth.c"
                          "src/phy/esp_eth_phy_dp83848.c")
