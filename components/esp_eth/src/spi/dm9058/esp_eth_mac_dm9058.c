@@ -446,7 +446,9 @@ static esp_err_t dm9058_ptp_enable(emac_dm9058_t *emac, bool enable)
         ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_TCR, 0x00), err, TAG, "write TCR failed");
 
         /* Master/Slave Mode & 1588 Version Register: RX_EN=0x10 | multicast=0x02 */
-        ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_PTP_RXCR, PTP_RXCR_ENABLE | PTP_RXCR_MCAST), err, TAG, "write PTP_RXCR failed");
+        //ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_PTP_RXCR, PTP_RXCR_ENABLE | PTP_RXCR_MCAST), err, TAG, "write PTP_RXCR failed");
+        // disable RXCR
+        ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_PTP_RXCR, 0x00), err, TAG, "write PTP_RXCR failed");
 
         /* TX One Step disabled */
         ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_PTP_ONESTEP, 0x00), err, TAG, "write PTP_ONESTEP failed");
