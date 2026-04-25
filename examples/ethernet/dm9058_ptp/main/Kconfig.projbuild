@@ -1,4 +1,8 @@
 menu "Example Configuration"
+
+    orsource "$IDF_PATH/examples/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
+    orsource "../components/ptpd/Kconfig.projbuild"
+
     config EXAMPLE_ETH_DEINIT_AFTER_S
         int "Stop and deinit Ethernet after elapsing number of secs"
         range -1 300
@@ -24,6 +28,7 @@ menu "Example Configuration"
 
         config EXAMPLE_PTP_TRANSPORT_L2
             bool "Ethernet L2 (EtherType 0x88F7)"
+            select ESP_NETIF_L2_TAP
         config EXAMPLE_PTP_TRANSPORT_UDP_IPV4
             bool "UDP over IPv4"
         config EXAMPLE_PTP_TRANSPORT_UDP_IPV6
@@ -36,5 +41,39 @@ menu "Example Configuration"
         range 100 10000
         default 1000
         help
-            Interval in milliseconds between PTP time sync operations.
+            Interval in milliseconds between periodic PTP time log (when pulse demo is disabled).
+
+    config EXAMPLE_PTP_PULSE_DEMO
+        bool "GPIO pulse train demo (oscilloscope, like examples/ethernet/ptp)"
+        depends on EXAMPLE_USE_PTP
+        default y
+        help
+            Toggle a GPIO from timestamps read from the DM9058 PTP clock so two boards can be
+            compared on a scope. Uses software polling (no esp_eth_time hardware compare).
+
+    config EXAMPLE_PTP_PULSE_GPIO
+        int "PPS / pulse GPIO number"
+        depends on EXAMPLE_USE_PTP && EXAMPLE_PTP_PULSE_DEMO
+        range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
+        default 20
+        help
+            GPIO output for the pulse train (same role as examples/ethernet/ptp).
+
+    config EXAMPLE_PTP_PULSE_WIDTH_NS
+        int "Half-period between toggles (ns)"
+        depends on EXAMPLE_USE_PTP && EXAMPLE_PTP_PULSE_DEMO
+        range 5000 999999999
+        default 500000000
+        help
+            Time between successive GPIO toggles in nanoseconds (square wave period = 2 x this).
+            Very short values are limited by SPI PTP time read latency.
+
+    config EXAMPLE_PTP_PULSE_WARMUP_S
+        int "Seconds to wait after link before starting pulse train"
+        depends on EXAMPLE_USE_PTP && EXAMPLE_PTP_PULSE_DEMO
+        range 0 120
+        default 5
+        help
+            Waits after link before toggling GPIO; with software ptpd enabled, the pulse train starts
+            only after the slave reports a valid grandmaster (see Apache ptpd status).
 endmenu
