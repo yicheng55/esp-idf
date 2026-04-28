@@ -165,14 +165,6 @@ menu "Ethernet"
                 Select this to enable DM9058 driver.
 
         if ETH_SPI_ETHERNET_DM9058
-            config ETH_DM9058_PTP_TWO_STEP_MODE
-                bool "DM9058 PTP Two-Step Mode"
-                default y
-                help
-                    Enable two-step timestamp mode for PTP on DM9058.
-                    In two-step mode, timestamps are captured but not inserted by hardware.
-                    If disabled, one-step mode is used where timestamps are inserted by hardware.
-
             choice ETH_DM9058_PTP_TRANSPORT
                 prompt "DM9058 PTP Transport"
                 default ETH_DM9058_PTP_TRANSPORT_IEEE_802_3

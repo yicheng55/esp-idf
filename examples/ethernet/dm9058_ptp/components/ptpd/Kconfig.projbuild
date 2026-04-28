@@ -169,13 +169,12 @@ menu "PTP Daemon Configuration"
 
             config NETUTILS_PTPD_TWOSTEP_SYNC
                 bool "PTP server sends two-step synchronization packets"
-                default ETH_DM9058_PTP_TWO_STEP_MODE if ETH_SPI_ETHERNET_DM9058
                 default y
                 help
                     If enabled, sends a follow-up packet after every sync packet.
                     This helps compensate for the time taken to initiate the transmission.
-                    When using DM9058, this must match ETH_DM9058_PTP_TWO_STEP_MODE
-                    so that the hardware timestamp mode aligns with the protocol behavior.
+                    When using DM9058, this option also controls the driver PTP
+                    hardware two-step mode so protocol behavior stays aligned.
 
             config NETUTILS_PTPD_DELAYRESP_INTERVAL
                 int "PTP server suggested interval of delay requests"

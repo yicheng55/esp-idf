@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ESP-IDF example demonstrating IEEE 1588 PTPv2 time synchronization over Ethernet at Layer 2 (L2 TAP interface, EtherType `0x88F7`, per Annex F of IEEE 1588-2008). Hardware timestamps come from the Ethernet MAC; the daemon is a NuttX PTPD port adapted for ESP-IDF. Two devices run the same firmware and align a GPIO pulse so the sync precision can be measured on an oscilloscope.
 
-The upstream example targets the ESP32-P4 internal EMAC; **this fork adds DM9058 SPI Ethernet PHY support and targets ESP32-S3** (see `sdkconfig.defaults`). The DM9058 PTP support (`ESP_ETH_PTP_DM9058_TRANSPORT_*`, `ETH_DM9058_PTP_TWO_STEP_MODE`) lives upstream in `$IDF_PATH/components/esp_eth/src/spi/dm9058/` — that is a modified ESP-IDF tree, not the stock release.
+The upstream example targets the ESP32-P4 internal EMAC; **this fork adds DM9058 SPI Ethernet PHY support and targets ESP32-S3** (see `sdkconfig.defaults`). The DM9058 PTP support (`ESP_ETH_PTP_DM9058_TRANSPORT_*`, `NETUTILS_PTPD_TWOSTEP_SYNC`) lives upstream in `$IDF_PATH/components/esp_eth/src/spi/dm9058/` — that is a modified ESP-IDF tree, not the stock release.
 
 ## Build / flash / monitor
 
@@ -33,7 +33,7 @@ idf.py -p COMx flash monitor   # exit monitor with Ctrl-]
 
 Three layers, bottom-up:
 
-1. **DM9058 PTP driver** (`$IDF_PATH/components/esp_eth/src/spi/dm9058/`, outside this example). Exposes `ETH_MAC_ESP_CMD_*` ioctls (`PTP_ENABLE`, `G/S_PTP_TIME`, `ADJ_PTP_FREQ`, `G_PTP_RX_TIME`, `S_TARGET_TIME`, `S_TARGET_CB`) and the `esp_eth_ptp_dm9058_transport_t` enum (`UDP_IPV4`, `UDP_IPV6`, `IEEE_802_3`, `IEEE_802_1AS`). Two-step timestamp mode is selected via `CONFIG_ETH_DM9058_PTP_TWO_STEP_MODE`.
+1. **DM9058 PTP driver** (`$IDF_PATH/components/esp_eth/src/spi/dm9058/`, outside this example). Exposes `ETH_MAC_ESP_CMD_*` ioctls (`PTP_ENABLE`, `G/S_PTP_TIME`, `ADJ_PTP_FREQ`, `G_PTP_RX_TIME`, `S_TARGET_TIME`, `S_TARGET_CB`) and the `esp_eth_ptp_dm9058_transport_t` enum (`UDP_IPV4`, `UDP_IPV6`, `IEEE_802_3`, `IEEE_802_1AS`). Two-step timestamp mode is controlled by `CONFIG_NETUTILS_PTPD_TWOSTEP_SYNC`.
 
 2. **`components/esp_eth_time/`** — thin POSIX-style wrapper over those ioctls. Exposes `CLOCK_PTP_SYSTEM` (id 19) and `clock_gettime/settime/adjtime`-shaped functions plus target-time callback registration. `s_eth_hndl` is a file-static set in `esp_eth_clock_init()`, so this component assumes **one** PTP-capable ethernet handle per process.
 
