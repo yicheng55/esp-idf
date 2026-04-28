@@ -156,6 +156,50 @@ menu "Ethernet"
                 The KSZ8851SNL is a single-chip Fast Ethernet controller consisting of
                 a 10/100 physical layer transceiver (PHY), a MAC, and a Serial Peripheral Interface (SPI).
                 Select this to enable KSZ8851SNL driver.
+
+        config ETH_SPI_ETHERNET_DM9058
+            bool "Use DM9058"
+            help
+                DM9058 is a fast Ethernet controller with an SPI interface.
+                It's also integrated with a 10/100M PHY and MAC, and includes PTP support.
+                Select this to enable DM9058 driver.
+
+        if ETH_SPI_ETHERNET_DM9058
+            config ETH_DM9058_PTP_TWO_STEP_MODE
+                bool "DM9058 PTP Two-Step Mode"
+                default y
+                help
+                    Enable two-step timestamp mode for PTP on DM9058.
+                    In two-step mode, timestamps are captured but not inserted by hardware.
+                    If disabled, one-step mode is used where timestamps are inserted by hardware.
+
+            choice ETH_DM9058_PTP_TRANSPORT
+                prompt "DM9058 PTP Transport"
+                default ETH_DM9058_PTP_TRANSPORT_IEEE_802_3
+                help
+                    Select the transport layer for PTP on DM9058.
+
+                config ETH_DM9058_PTP_TRANSPORT_IEEE_802_3
+                    bool "IEEE 802.3 (L2 PTP)"
+                    help
+                        Use direct Ethernet Layer 2 transport for PTP messages.
+
+                config ETH_DM9058_PTP_TRANSPORT_IEEE_802_1AS
+                    bool "IEEE 802.1AS (gPTP)"
+                    help
+                        Use IEEE 802.1AS (generalized PTP) transport.
+
+                config ETH_DM9058_PTP_TRANSPORT_UDP_IPV4
+                    bool "UDP over IPv4"
+                    help
+                        Use UDP over IPv4 transport for PTP messages.
+
+                config ETH_DM9058_PTP_TRANSPORT_UDP_IPV6
+                    bool "UDP over IPv6"
+                    help
+                        Use UDP over IPv6 transport for PTP messages.
+            endchoice
+        endif # ETH_SPI_ETHERNET_DM9058
     endif # ETH_USE_SPI_ETHERNET
 
     menuconfig ETH_USE_OPENETH

@@ -11,7 +11,9 @@
 #include <stdbool.h>
 #include "esp_err.h"
 #include "esp_eth_driver.h"
+#include "esp_eth_mac.h"
 #include "esp_eth_mac_spi.h"
+#include "esp_eth_mac_dm9058.h"
 
 #ifdef __cplusplus
 extern "C" {

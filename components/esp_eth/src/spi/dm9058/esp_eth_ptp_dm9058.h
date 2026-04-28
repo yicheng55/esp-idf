@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "esp_eth_mac_spi.h"  // for esp_eth_ptp_dm9058_transport_t, esp_eth_ptp_dm9058_enable_config_t
+#include "esp_eth_mac_dm9058.h"  // for public types and commands
 
 #ifdef __cplusplus
 extern "C" {
