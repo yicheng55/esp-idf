@@ -1,0 +1,3 @@
+dependencies:
+  esp_eth_time:
+    path: ../esp_eth_time
