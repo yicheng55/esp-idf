@@ -13,6 +13,7 @@
 #include "esp_eth_mac_spi.h"
 #include "esp_eth_mac.h"
 #include "esp_eth_phy.h"
+#include "esp_eth_com.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,29 +62,17 @@ typedef struct {
  * @brief DM9058 MAC custom ioctl commands
  */
 typedef enum {
-    ETH_MAC_DM9058_CMD_PTP_ENABLE = 0,          /*!< Enable/disable PTP with transport type */
-    ETH_MAC_DM9058_CMD_PTP_AUTO_PROCESS = 1,    /*!< Auto-process PTP packets */
-    ETH_MAC_DM9058_CMD_S_PTP_TIME = 2,          /*!< Set PTP time */
-    ETH_MAC_DM9058_CMD_G_PTP_TIME = 3,          /*!< Get PTP time */
-    ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ = 4,        /*!< Adjust PTP frequency (ppb) */
-    ETH_MAC_DM9058_CMD_ADJ_PTP_TIME = 5,        /*!< Adjust PTP time offset */
-    ETH_MAC_DM9058_CMD_G_PTP_TX_TIME = 6,       /*!< Get TX timestamp */
-    ETH_MAC_DM9058_CMD_G_PTP_RX_TIME = 7,       /*!< Get RX timestamp (deprecated) */
-    ETH_MAC_DM9058_CMD_S_TARGET_TIME = 8,       /*!< Set target time for interrupt */
-    ETH_MAC_DM9058_CMD_S_TARGET_CB = 9,         /*!< Set target time callback */
-} eth_mac_dm9058_cmd_t;
-
-/* Command aliases for compatibility with example code */
-#define ETH_MAC_ESP_CMD_PTP_ENABLE         ETH_MAC_DM9058_CMD_PTP_ENABLE
-#define ETH_MAC_ESP_CMD_PTP_AUTO_PROCESS   ETH_MAC_DM9058_CMD_PTP_AUTO_PROCESS
-#define ETH_MAC_ESP_CMD_S_PTP_TIME         ETH_MAC_DM9058_CMD_S_PTP_TIME
-#define ETH_MAC_ESP_CMD_G_PTP_TIME         ETH_MAC_DM9058_CMD_G_PTP_TIME
-#define ETH_MAC_ESP_CMD_ADJ_PTP_FREQ       ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ
-#define ETH_MAC_ESP_CMD_ADJ_PTP_TIME       ETH_MAC_DM9058_CMD_ADJ_PTP_TIME
-#define ETH_MAC_ESP_CMD_G_PTP_TX_TIME      ETH_MAC_DM9058_CMD_G_PTP_TX_TIME
-#define ETH_MAC_ESP_CMD_G_PTP_RX_TIME      ETH_MAC_DM9058_CMD_G_PTP_RX_TIME
-#define ETH_MAC_ESP_CMD_S_TARGET_TIME      ETH_MAC_DM9058_CMD_S_TARGET_TIME
-#define ETH_MAC_ESP_CMD_S_TARGET_CB        ETH_MAC_DM9058_CMD_S_TARGET_CB
+    ETH_MAC_ESP_CMD_PTP_ENABLE       = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 0,  /*!< Enable/disable PTP with transport type */
+    ETH_MAC_ESP_CMD_PTP_AUTO_PROCESS = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 1,  /*!< Auto-process PTP packets */
+    ETH_MAC_ESP_CMD_S_PTP_TIME       = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 2,  /*!< Set PTP time */
+    ETH_MAC_ESP_CMD_G_PTP_TIME       = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 3,  /*!< Get PTP time */
+    ETH_MAC_ESP_CMD_ADJ_PTP_FREQ     = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 4,  /*!< Adjust PTP frequency (ppb) */
+    ETH_MAC_ESP_CMD_ADJ_PTP_TIME     = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 5,  /*!< Adjust PTP time offset */
+    ETH_MAC_ESP_CMD_G_PTP_TX_TIME    = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 6,  /*!< Get TX timestamp */
+    ETH_MAC_ESP_CMD_G_PTP_RX_TIME    = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 7,  /*!< Get RX timestamp (deprecated) */
+    ETH_MAC_ESP_CMD_S_TARGET_TIME    = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 8,  /*!< Set target time for interrupt */
+    ETH_MAC_ESP_CMD_S_TARGET_CB      = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET + 9,  /*!< Set target time callback */
+} eth_mac_dm9058_io_cmd_t;
 
 /**
  * @brief Default DM9058 specific configuration

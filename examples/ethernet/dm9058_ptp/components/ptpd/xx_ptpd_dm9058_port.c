@@ -23,7 +23,7 @@ int ptpd_dm9058_clock_gettime(struct timespec *ts)
         return -1;
     }
     eth_dm9058_ptp_time_t t;
-    if (esp_eth_ioctl(s_eth, ETH_MAC_DM9058_CMD_G_PTP_TIME, &t) != ESP_OK) {
+    if (esp_eth_ioctl(s_eth, ETH_MAC_ESP_CMD_G_PTP_TIME, &t) != ESP_OK) {
         return -1;
     }
     ts->tv_sec = (time_t)t.seconds;
@@ -40,7 +40,7 @@ int ptpd_dm9058_clock_settime(const struct timespec *ts)
         .seconds = (uint32_t)ts->tv_sec,
         .nanoseconds = (uint32_t)ts->tv_nsec,
     };
-    if (esp_eth_ioctl(s_eth, ETH_MAC_DM9058_CMD_S_PTP_TIME, &t) != ESP_OK) {
+    if (esp_eth_ioctl(s_eth, ETH_MAC_ESP_CMD_S_PTP_TIME, &t) != ESP_OK) {
         return -1;
     }
     return 0;
@@ -59,7 +59,7 @@ int ptpd_dm9058_clock_adjtime_ns(int64_t adjustment_ns, int period_ms)
         ppb = -500000.0;
     }
     int32_t adj = (int32_t)lrint(ppb);
-    esp_err_t err = esp_eth_ioctl(s_eth, ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ, &adj);
+    esp_err_t err = esp_eth_ioctl(s_eth, ETH_MAC_ESP_CMD_ADJ_PTP_FREQ, &adj);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "ADJ_PTP_FREQ failed: %s", esp_err_to_name(err));
         return -1;

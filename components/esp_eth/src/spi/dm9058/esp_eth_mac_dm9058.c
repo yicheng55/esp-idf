@@ -844,49 +844,49 @@ static esp_err_t esp32_DM9058_custom_ioctl(esp_eth_mac_t *mac, int cmd, void *da
     esp_eth_ptp_dm9058_time_t *time = (esp_eth_ptp_dm9058_time_t *)data;
 
     switch (cmd) {
-    case ETH_MAC_DM9058_CMD_PTP_ENABLE: {
+    case ETH_MAC_ESP_CMD_PTP_ENABLE: {
         ESP_RETURN_ON_FALSE(data != NULL, ESP_ERR_INVALID_ARG, TAG, "PTP_ENABLE expects esp_eth_ptp_dm9058_enable_config_t*");
         esp_eth_ptp_dm9058_enable_config_t *cfg = (esp_eth_ptp_dm9058_enable_config_t *)data;
         ESP_LOGD(TAG, "PTP_ENABLE: enable=%d, transport=%d", cfg->enable, cfg->transport);
         return esp_eth_ptp_dm9058_enable(&emac->ptp, cfg->enable, cfg->transport);
     }
-    case ETH_MAC_DM9058_CMD_PTP_AUTO_PROCESS:
+    case ETH_MAC_ESP_CMD_PTP_AUTO_PROCESS:
         ESP_RETURN_ON_FALSE(data != NULL, ESP_ERR_INVALID_ARG, TAG, "PTP_AUTO_PROCESS expects bool*");
         emac->ptp_auto_process = *(bool *)data;
         return ESP_OK;
-    case ETH_MAC_DM9058_CMD_S_PTP_TIME:
+    case ETH_MAC_ESP_CMD_S_PTP_TIME:
         ESP_RETURN_ON_FALSE(time != NULL, ESP_ERR_INVALID_ARG, TAG, "S_PTP_TIME expects eth_mac_time_t*");
         ptp_time.seconds = time->seconds;
         ptp_time.nanoseconds = time->nanoseconds;
         return esp_eth_ptp_dm9058_set_time(&emac->ptp, &ptp_time);
-    case ETH_MAC_DM9058_CMD_G_PTP_TIME:
+    case ETH_MAC_ESP_CMD_G_PTP_TIME:
         ESP_RETURN_ON_FALSE(time != NULL, ESP_ERR_INVALID_ARG, TAG, "G_PTP_TIME expects eth_mac_time_t*");
         ESP_RETURN_ON_ERROR(esp_eth_ptp_dm9058_get_time(&emac->ptp, &ptp_time), TAG, "get ptp time failed");
         time->seconds = ptp_time.seconds;
         time->nanoseconds = ptp_time.nanoseconds;
         return ESP_OK;
-    case ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ:
+    case ETH_MAC_ESP_CMD_ADJ_PTP_FREQ:
         ESP_RETURN_ON_FALSE(data != NULL, ESP_ERR_INVALID_ARG, TAG, "ADJ_PTP_FREQ expects int32_t*");
         return esp_eth_ptp_dm9058_adj_freq(&emac->ptp, *(int32_t *)data);
-    case ETH_MAC_DM9058_CMD_ADJ_PTP_TIME:
+    case ETH_MAC_ESP_CMD_ADJ_PTP_TIME:
         ESP_RETURN_ON_FALSE(time != NULL, ESP_ERR_INVALID_ARG, TAG, "ADJ_PTP_TIME expects eth_mac_time_t*");
         ptp_time.seconds = (uint32_t)((int32_t)time->seconds);
         ptp_time.nanoseconds = (uint32_t)((int32_t)time->nanoseconds);
         return esp_eth_ptp_dm9058_adj_time(&emac->ptp, &ptp_time);
-    case ETH_MAC_DM9058_CMD_G_PTP_TX_TIME:
+    case ETH_MAC_ESP_CMD_G_PTP_TX_TIME:
         ESP_RETURN_ON_FALSE(time != NULL, ESP_ERR_INVALID_ARG, TAG, "G_PTP_TX_TIME expects eth_mac_time_t*");
         ESP_RETURN_ON_ERROR(esp_eth_ptp_dm9058_get_tx_timestamp(&emac->ptp, &ptp_time), TAG, "get tx timestamp failed");
         time->seconds = ptp_time.seconds;
         time->nanoseconds = ptp_time.nanoseconds;
         return ESP_OK;
-    case ETH_MAC_DM9058_CMD_G_PTP_RX_TIME:
+    case ETH_MAC_ESP_CMD_G_PTP_RX_TIME:
         /* RX timestamp is now delivered inline via stack_input_info; polling via ioctl is no longer supported. */
         return ESP_ERR_NOT_SUPPORTED;
-    case ETH_MAC_DM9058_CMD_S_TARGET_TIME:
+    case ETH_MAC_ESP_CMD_S_TARGET_TIME:
         // Target time not yet supported in DM9058
         ESP_LOGW(TAG, "Target time feature not yet implemented for DM9058");
         return ESP_ERR_NOT_SUPPORTED;
-//		ESP_LOGW(PTP_TAG, "case ETH_MAC_DM9058_CMD_S_TARGET_TIME of DM9058");
+//		ESP_LOGW(PTP_TAG, "case ETH_MAC_ESP_CMD_S_TARGET_TIME of DM9058");
 //        ESP_RETURN_ON_FALSE(data, ESP_ERR_INVALID_ARG, PTP_TAG, "PTP set target time invalid argument, cant' be NULL");
 //        emac->target_time = *(esp_eth_ptp_dm9058_time_t *)data;
 //        emac->target_time_valid = true;
@@ -904,11 +904,11 @@ static esp_err_t esp32_DM9058_custom_ioctl(esp_eth_mac_t *mac, int cmd, void *da
 //        }
 //        dm9058_ptp_timer_start(emac);
 //        return ESP_OK;
-    case ETH_MAC_DM9058_CMD_S_TARGET_CB:
+    case ETH_MAC_ESP_CMD_S_TARGET_CB:
         // Target callback not yet supported in DM9058
         ESP_LOGW(TAG, "Target callback feature not yet implemented for DM9058");
         return ESP_ERR_NOT_SUPPORTED;
-//		ESP_LOGW(PTP_TAG, "case ETH_MAC_DM9058_CMD_S_TARGET_CB of DM9058");
+//		ESP_LOGW(PTP_TAG, "case ETH_MAC_ESP_CMD_S_TARGET_CB of DM9058");
 //        ESP_RETURN_ON_FALSE(data, ESP_ERR_INVALID_ARG, PTP_TAG, "PTP set target callback invalid argument, cant' be NULL");
 //        emac->ts_target_exceed_cb_from_isr = (dm9058_ts_target_cb_t)data;
 //        dm9058_ptp_timer_start(emac);

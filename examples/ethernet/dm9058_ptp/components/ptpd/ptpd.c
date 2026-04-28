@@ -687,18 +687,6 @@ static int ptp_gettime(FAR struct ptp_state_s *state,
   UNUSED(state);
 #ifdef ESP_PTP
   return esp_eth_clock_gettime(CLOCK_PTP_SYSTEM, ts);
-  #if 0
-            {
-              eth_mac_time_t rx_ts = {0};
-              if (esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_G_PTP_TIME, &rx_ts) == ESP_OK) {
-                ts->tv_sec  = (time_t)rx_ts.seconds;
-                ts->tv_nsec = (long)rx_ts.nanoseconds;
-                ESP_LOGD(TAG, "PTP hw timestamp: %lld.%09ld", (long long)ts->tv_sec, ts->tv_nsec);
-              } else {
-                ESP_LOGD(TAG, "ETH_MAC_DM9058_CMD_G_PTP_TIME: no hw timestamp available, keeping ..");
-              }
-            }
-  #endif // 0
 #else
   return clock_gettime(CLOCK_REALTIME, ts);
 #endif // ESP_PTP
@@ -712,19 +700,6 @@ static int ptp_settime(FAR struct ptp_state_s *state,
   UNUSED(state);
 #ifdef ESP_PTP
   return esp_eth_clock_settime(CLOCK_PTP_SYSTEM, ts);
-  #if 0
-    {
-      eth_mac_time_t tts = {0};
-      tts.seconds = (uint32_t)ts->tv_sec;
-      tts.nanoseconds = (uint32_t)ts->tv_nsec;
-      if (esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_S_PTP_TIME, &tts) == ESP_OK) {
-        ESP_LOGD(TAG, "Set PTP hw timestamp: %lld.%09ld", (long long)ts->tv_sec, ts->tv_nsec);
-      } else {
-        ESP_LOGD(TAG, "ETH_MAC_DM9058_CMD_S_PTP_TIME: no hw timestamp available, checking ..");
-      }
-    }
-    return OK;
-  #endif //1
 #else
   return clock_settime(CLOCK_REALTIME, ts);
 #endif // ESP_PTP
@@ -1522,9 +1497,9 @@ static void ptp_lock_local_clock_freq(FAR struct ptp_state_s *state,
   // Call esp_eth_ptp_dm9058_adj_freq(adj_ppb) via ioctl
   int32_t adj_ppb_i32 = (int32_t)adj_ppb;
   //[tbd] currently only DM9058 supports frequency adjustment, need to add check for eth driver type here when more drivers are supported
-  esp_err_t freq_adj_ret = esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ, &adj_ppb_i32);
+  esp_err_t freq_adj_ret = esp_eth_ioctl(state->eth_handle, ETH_MAC_ESP_CMD_ADJ_PTP_FREQ, &adj_ppb_i32);
   if (freq_adj_ret != ESP_OK) {
-    ptpwarn("ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ failed: %s", esp_err_to_name(freq_adj_ret));
+    ptpwarn("ETH_MAC_ESP_CMD_ADJ_PTP_FREQ failed: %s", esp_err_to_name(freq_adj_ret));
   }
   state->remote_time_ns_prev = remote_time_ns;
   state->local_time_ns_prev = local_time_ns;
@@ -1612,34 +1587,10 @@ static int ptp_update_local_clock(FAR struct ptp_state_s *state,
 
       struct timespec new_time;
       ptp_gettime(state, &new_time);
-      #if 0
-      {
-        eth_mac_time_t rx_ts = {0};
-        if (esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_G_PTP_TIME, &rx_ts) == ESP_OK) {
-          new_time.tv_sec  = (time_t)rx_ts.seconds;
-          new_time.tv_nsec = (long)rx_ts.nanoseconds;
-          ESP_LOGD(TAG, "GET PTP TIME hw timestamp: %lld.%09ld", (long long)new_time.tv_sec, new_time.tv_nsec);
-        } else {
-          ESP_LOGD(TAG, "ETH_MAC_DM9058_CMD_G_PTP_TIME: no hw timestamp available, keeping ..");
-        }
-      }
-      #endif // 1
+
       clock_timespec_subtract(&new_time, local_timestamp, &new_time);
       clock_timespec_add(&new_time, remote_timestamp, &new_time);
       ret = ptp_settime(state, &new_time);
-      #if 0
-      {
-        eth_mac_time_t rx_ts = {0};
-        rx_ts.seconds = (uint32_t)new_time.tv_sec;
-        rx_ts.nanoseconds = (uint32_t)new_time.tv_nsec;
-        if (esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_S_PTP_TIME, &rx_ts) == ESP_OK) {
-          ESP_LOGD(TAG, "SET PTP TIME hw timestamp: %lld.%09ld", (long long)new_time.tv_sec, new_time.tv_nsec);
-        } else {
-          ESP_LOGD(TAG, "ETH_MAC_DM9058_CMD_S_PTP_TIME: no hw timestamp available, keeping ..");
-        }
-        ret = OK;
-      }
-      #endif // 1
 
       /* Reinitialize drift adjustment parameters */
 
@@ -2529,18 +2480,6 @@ static int ptp_daemon(int argc, FAR char** argv)
                 //   ptpdbg("get_rx_timestamp: no hw timestamp available, keeping L2TAP timestamp");
                 // }
 
-                #if 0
-                eth_mac_time_t rx_ts = {0};
-                if (esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_G_PTP_RX_TIME, &rx_ts) == ESP_OK)
-                {
-                  state->rxtime.tv_sec  = (time_t)rx_ts.seconds;
-                  state->rxtime.tv_nsec = (long)rx_ts.nanoseconds;
-                  ESP_LOGD(TAG, "RX hw timestamp: %lld.%09ld", (long long)state->rxtime.tv_sec, state->rxtime.tv_nsec);
-                } else
-                {
-                  ESP_LOGD(TAG, "ETH_MAC_DM9058_CMD_G_PTP_RX_TIME: no hw timestamp available, keeping L2TAP timestamp");
-                }
-                #endif // 0
             }
 #endif // ESP_PTP
               ptp_process_rx_packet(state, ret);
