@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <sys/cdefs.h>
 #include <inttypes.h>
 #include "esp_eth_mac_spi.h"
@@ -29,6 +30,7 @@
 #include "esp_cpu.h"
 #include "esp_timer.h"
 #include "esp_rom_crc.h"
+#include "esp_eth_ptp_dm9058.h"
 
 static const char *TAG = "dm9058.mac";
 
@@ -76,6 +78,9 @@ typedef struct {
     bool flow_ctrl_enabled;
     uint8_t *rx_buffer;
     uint8_t hash_filter_cnt[DM9058_HASH_FILTER_TABLE_SIZE];
+    /* PTP (IEEE 1588) — logic in esp_eth_ptp_dm9058.c, L2 / two-step default */
+    esp_eth_ptp_dm9058_t ptp;
+    eth_dm9058_ptp_transport_t ptp_transport;
 } emac_dm9058_t;
 
 static void *dm9058_spi_init(const void *spi_config)
@@ -420,6 +425,139 @@ err:
     return ret;
 }
 
+static esp_err_t dm9058_ptp_ops_reg_read(void *io_ctx, uint8_t reg, uint8_t *value)
+{
+    return dm9058_register_read((emac_dm9058_t *)io_ctx, reg, value);
+}
+
+static esp_err_t dm9058_ptp_ops_reg_write(void *io_ctx, uint8_t reg, uint8_t value)
+{
+    return dm9058_register_write((emac_dm9058_t *)io_ctx, reg, value);
+}
+
+/**
+ * PTP sequences must not fail transiently while PHY or stack holds the same mutex
+ * for a bounded time; use indefinite wait (PHY paths keep their own short timeout).
+ */
+static bool dm9058_ptp_ops_lock(void *io_ctx)
+{
+    emac_dm9058_t *emac = (emac_dm9058_t *)io_ctx;
+    return xSemaphoreTake(emac->multi_reg_axs_mutex, portMAX_DELAY) == pdTRUE;
+}
+
+static void dm9058_ptp_ops_unlock(void *io_ctx)
+{
+    dm9058_mutex_unlock((emac_dm9058_t *)io_ctx);
+}
+
+static void dm9058_ptp_ops_delay_us(uint32_t us)
+{
+    esp_rom_delay_us(us);
+}
+
+static void dm9058_ptp_ops_delay_ms(uint32_t ms)
+{
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
+
+static const esp_eth_ptp_dm9058_ops_t s_dm9058_ptp_ops = {
+    .reg_read = dm9058_ptp_ops_reg_read,
+    .reg_write = dm9058_ptp_ops_reg_write,
+    .reg_burst_read = NULL,
+    .reg_burst_write = NULL,
+    .delay_us = dm9058_ptp_ops_delay_us,
+    .delay_ms = dm9058_ptp_ops_delay_ms,
+    .lock = dm9058_ptp_ops_lock,
+    .unlock = dm9058_ptp_ops_unlock,
+};
+
+/**
+ * @brief Enable/disable PTP — driver supports IEEE 802.3 (EtherType 0x88F7) only.
+ */
+static esp_err_t dm9058_ptp_enable(emac_dm9058_t *emac, bool enable)
+{
+    if (enable) {
+        if (emac->ptp_transport != DM9058_PTP_TRANSPORT_IEEE_802_3) {
+            ESP_LOGE(TAG, "PTP: only DM9058_PTP_TRANSPORT_IEEE_802_3 (L2) is supported");
+            return ESP_ERR_NOT_SUPPORTED;
+        }
+        esp_err_t ret = esp_eth_ptp_dm9058_enable(&emac->ptp, true);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "PTP enabled (IEEE 802.3 layer 2, two-step default)");
+        }
+        return ret;
+    }
+    esp_err_t ret = esp_eth_ptp_dm9058_enable(&emac->ptp, false);
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "PTP disabled");
+    }
+    return ret;
+}
+
+static esp_err_t emac_dm9058_custom_ioctl(esp_eth_mac_t *mac, int cmd, void *data)
+{
+    esp_err_t ret = ESP_OK;
+    emac_dm9058_t *emac = __containerof(mac, emac_dm9058_t, parent);
+
+    switch (cmd) {
+    case ETH_MAC_DM9058_CMD_PTP_ENABLE: {
+        bool *enable = (bool *)data;
+        ESP_GOTO_ON_FALSE(enable, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        ret = dm9058_ptp_enable(emac, *enable);
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_S_PTP_TIME: {
+        eth_dm9058_ptp_time_t *time = (eth_dm9058_ptp_time_t *)data;
+        ESP_GOTO_ON_FALSE(time, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        ret = esp_eth_ptp_dm9058_set_time(&emac->ptp, time);
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "PTP time set: %" PRIu32 " sec %" PRIu32 " ns", time->seconds, time->nanoseconds);
+        }
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_G_PTP_TIME: {
+        eth_dm9058_ptp_time_t *time = (eth_dm9058_ptp_time_t *)data;
+        ESP_GOTO_ON_FALSE(time, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        ret = esp_eth_ptp_dm9058_get_time(&emac->ptp, time);
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ: {
+        int32_t *adj_ppb = (int32_t *)data;
+        ESP_GOTO_ON_FALSE(adj_ppb, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        ret = esp_eth_ptp_dm9058_adj_freq(&emac->ptp, *adj_ppb);
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_ADJ_PTP_TIME: {
+        eth_dm9058_ptp_time_t *offset = (eth_dm9058_ptp_time_t *)data;
+        ESP_GOTO_ON_FALSE(offset, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        ret = esp_eth_ptp_dm9058_adj_time(&emac->ptp, offset);
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_G_TX_TIMESTAMP: {
+        eth_dm9058_ptp_time_t *time = (eth_dm9058_ptp_time_t *)data;
+        ESP_GOTO_ON_FALSE(time, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        ret = esp_eth_ptp_dm9058_get_tx_timestamp(&emac->ptp, time);
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_S_PTP_TRANSPORT: {
+        eth_dm9058_ptp_transport_t *transport = (eth_dm9058_ptp_transport_t *)data;
+        ESP_GOTO_ON_FALSE(transport, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        if (*transport != DM9058_PTP_TRANSPORT_IEEE_802_3) {
+            ret = ESP_ERR_NOT_SUPPORTED;
+            break;
+        }
+        emac->ptp_transport = *transport;
+        break;
+    }
+    default:
+        ret = ESP_ERR_NOT_SUPPORTED;
+        break;
+    }
+
+err:
+    return ret;
+}
+
 /**
  * @brief start dm9058: enable interrupt and start receive
  */
@@ -709,6 +847,11 @@ static esp_err_t emac_dm9058_transmit(esp_eth_mac_t *mac, uint8_t *buf, uint32_t
         ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_MPCR, MPCR_RST_TX), err, TAG, "write MPCR failed");
     }
 
+    if (emac->ptp.enabled) {
+        /* Default two-step: hardware captures TX timestamp for event messages; no originTimestamp insertion */
+        ESP_GOTO_ON_ERROR(esp_eth_ptp_dm9058_prepare_tx(&emac->ptp, buf, length, true), err, TAG, "ptp prepare tx failed");
+    }
+
     /* set tx length */
     ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_TXPLL, length & 0xFF), err, TAG, "write TXPLL failed");
     ESP_GOTO_ON_ERROR(dm9058_register_write(emac, DM9058_TXPLH, (length >> 8) & 0xFF), err, TAG, "write TXPLH failed");
@@ -717,6 +860,44 @@ static esp_err_t emac_dm9058_transmit(esp_eth_mac_t *mac, uint8_t *buf, uint32_t
     return ESP_OK;
 err:
     return ret;
+}
+
+static esp_err_t emac_dm9058_transmit_ctrl_vargs(esp_eth_mac_t *mac, void *ctrl, uint32_t argc, va_list args)
+{
+    emac_dm9058_t *emac = __containerof(mac, emac_dm9058_t, parent);
+
+    if (argc < 2 || (argc % 2) != 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    /* L2 TAP + PTP uses one (buffer, length) pair; esp_eth_transmit_ctrl_vargs passes that to MAC. */
+    if (argc != 2) {
+        for (uint32_t i = 0; i < argc / 2; i++) {
+            (void)va_arg(args, uint8_t *);
+            (void)va_arg(args, uint32_t);
+        }
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    uint8_t *buf = va_arg(args, uint8_t *);
+    uint32_t length = va_arg(args, uint32_t);
+
+    esp_err_t ret = emac_dm9058_transmit(mac, buf, length);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    eth_mac_time_t *ts = (eth_mac_time_t *)ctrl;
+    if (ts != NULL && emac->ptp.initialized && emac->ptp.enabled) {
+        esp_eth_ptp_dm9058_time_t ptp_ts;
+        if (esp_eth_ptp_dm9058_get_tx_timestamp(&emac->ptp, &ptp_ts) == ESP_OK) {
+            ts->seconds = ptp_ts.seconds;
+            ts->nanoseconds = ptp_ts.nanoseconds;
+        } else {
+            ts->seconds = 0;
+            ts->nanoseconds = 0;
+        }
+    }
+    return ESP_OK;
 }
 
 static esp_err_t dm9058_skip_recv_frame(emac_dm9058_t *emac, uint16_t rx_length)
@@ -895,7 +1076,21 @@ static void emac_dm9058_task(void *arg)
                         } else {
                             memcpy(buffer, emac->rx_buffer, buf_len);
                             ESP_LOGD(TAG, "receive len=%" PRIu32, buf_len);
-                            emac->eth->stack_input(emac->eth, buffer, buf_len);
+                            /* L2 TAP + PTP needs eth_mac_time_t for RX irec; stack_input(NULL) leaves rxtime zero
+                             * and two-step Sync/Follow_Up never stabilizes (no Delay_Req). */
+                            if (emac->ptp.initialized && emac->ptp.enabled && emac->eth->stack_input_info) {
+                                esp_eth_ptp_dm9058_time_t ptp_ts;
+                                eth_mac_time_t rx_ts;
+                                if (esp_eth_ptp_dm9058_get_time(&emac->ptp, &ptp_ts) == ESP_OK) {
+                                    rx_ts.seconds = ptp_ts.seconds;
+                                    rx_ts.nanoseconds = ptp_ts.nanoseconds;
+                                    emac->eth->stack_input_info(emac->eth, buffer, buf_len, &rx_ts);
+                                } else {
+                                    emac->eth->stack_input(emac->eth, buffer, buf_len);
+                                }
+                            } else {
+                                emac->eth->stack_input(emac->eth, buffer, buf_len);
+                            }
                         }
                     }
                 } else {
@@ -952,9 +1147,12 @@ esp_eth_mac_t *esp_eth_mac_new_dm9058(const eth_dm9058_config_t *dm9058_config, 
     emac->parent.set_peer_pause_ability = emac_dm9058_set_peer_pause_ability;
     emac->parent.enable_flow_ctrl = emac_dm9058_enable_flow_ctrl;
     emac->parent.transmit = emac_dm9058_transmit;
+    emac->parent.transmit_ctrl_vargs = emac_dm9058_transmit_ctrl_vargs;
     emac->parent.receive = emac_dm9058_receive;
     emac->parent.add_mac_filter = emac_dm9058_add_mac_filter;
     emac->parent.rm_mac_filter = emac_dm9058_rm_mac_filter;
+    emac->parent.custom_ioctl = emac_dm9058_custom_ioctl;
+    emac->ptp_transport = DM9058_PTP_TRANSPORT_IEEE_802_3;
 
     if (dm9058_config->custom_spi_driver.init != NULL && dm9058_config->custom_spi_driver.deinit != NULL
             && dm9058_config->custom_spi_driver.read != NULL && dm9058_config->custom_spi_driver.write != NULL) {
@@ -976,6 +1174,8 @@ esp_eth_mac_t *esp_eth_mac_new_dm9058(const eth_dm9058_config_t *dm9058_config, 
     /* create mutex for accessing multiple registers in atomic manner */
     emac->multi_reg_axs_mutex = xSemaphoreCreateMutex();
     ESP_GOTO_ON_FALSE(emac->multi_reg_axs_mutex, NULL, err, TAG, "create multi registers access mutex failed");
+
+    ESP_GOTO_ON_FALSE(esp_eth_ptp_dm9058_init(&emac->ptp, emac, &s_dm9058_ptp_ops) == ESP_OK, NULL, err, TAG, "ptp init failed");
 
     /* create dm9058 task */
     BaseType_t core_num = tskNO_AFFINITY;

@@ -78,6 +78,46 @@ extern "C" {
 #define DM9058_IMR (0x7F)     // Interrupt Mask Register
 
 /**
+ * @brief PTP (IEEE 1588) Registers in DM9058
+ *
+ */
+#define DM9058_PTP_CR (0x60)      // PTP Control Register
+#define DM9058_PTP_ENR (0x61)     // PTP Enable/Index Register
+#define DM9058_PTP_TXCR (0x62)    // PTP TX Timestamp Control Register
+#define DM9058_PTP_ONESTEP (0x63) // PTP One-Step TX Control Register
+#define DM9058_PTP_RXCR (0x64)    // PTP RX Control Register
+#define DM9058_PTP_TSOFF (0x65)   // PTP Timestamp Offset Register
+#define DM9058_PTP_CSOFF (0x66)   // PTP Checksum Offset Register
+#define DM9058_PTP_DATA (0x68)    // PTP Data Register (8 bytes: ns[0-3], sec[4-7])
+#define DM9058_PTP_RATE (0x69)    // PTP Rate Read Enable Register
+
+/* PTP Control Register (0x60) bits */
+#define PTP_CR_RESTART (1 << 0)   // PTP Restart (write 1 then 0)
+
+/* PTP Enable/Index Register (0x61) bits */
+#define PTP_ENR_ENABLE (1 << 0)   // PTP Enable
+#define PTP_ENR_SETTIME (1 << 3)  // Write PTP Clock Time
+#define PTP_ENR_GETTIME (1 << 2)  // Read PTP Clock Time
+#define PTP_ENR_ADDOFF (1 << 4)   // Add Time Offset
+#define PTP_ENR_ADJSLOWER (1 << 5)// Adjust Slower
+#define PTP_ENR_ADJFASTER (1 << 5)// Adjust Faster (without bit6)
+#define PTP_ENR_RSTIDX (1 << 7)   // Reset Data Index
+
+/* PTP TX Timestamp Control Register (0x62) bits */
+#define PTP_TXCR_READTS (1 << 0)  // Read TX Timestamp
+
+/* PTP RX Control Register (0x64) bits */
+#define PTP_RXCR_ENABLE (1 << 4)  // Enable RX Timestamp
+#define PTP_RXCR_MCAST (1 << 1)   // Multicast Mode
+
+/* PTP adjustment constants */
+#define PTP_ADJ_FREQ_BASE_ADDEND     171.7987f
+#define PTP_ADJ_FREQ_BASE_ADDEND_Q16 11259106
+#define PTP_ADJ_MAX                  0xEFFFFFFF
+#define PTP_ADJUST_SLOWER_CTRL       0x60
+#define PTP_ADJUST_FASTER_CTRL       0x20
+
+/**
  * @brief status and flag of DM9058 specific registers
  *
  */

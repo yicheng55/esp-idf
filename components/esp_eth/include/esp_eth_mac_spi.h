@@ -165,6 +165,41 @@ typedef struct {
     spi_device_interface_config_t *spi_devcfg;          /*!< SPI device configuration (this field is invalid when custom SPI driver is defined) */
     eth_spi_custom_driver_config_t custom_spi_driver;   /*!< Custom SPI driver definitions */
 } eth_dm9058_config_t;
+
+/**
+ * @brief DM9058 PTP time structure
+ *
+ */
+typedef struct {
+    uint32_t seconds;      /*!< Seconds part of the timestamp */
+    uint32_t nanoseconds;  /*!< Nanoseconds part of the timestamp */
+} eth_dm9058_ptp_time_t;
+
+/**
+ * @brief DM9058 PTP network transport type
+ *
+ * @note The DM9058 MAC driver enables IEEE 1588 hardware only for @ref DM9058_PTP_TRANSPORT_IEEE_802_3 (L2).
+ */
+typedef enum {
+    DM9058_PTP_TRANSPORT_UDP_IPV4 = 0,   /*!< PTP over UDP/IPv4 */
+    DM9058_PTP_TRANSPORT_UDP_IPV6,       /*!< PTP over UDP/IPv6 */
+    DM9058_PTP_TRANSPORT_IEEE_802_3,     /*!< PTP over Ethernet II (EtherType 0x88F7) */
+} eth_dm9058_ptp_transport_t;
+
+/**
+ * @brief List of DM9058 specific commands for ioctl API
+ *
+ */
+typedef enum {
+    ETH_MAC_DM9058_CMD_PTP_ENABLE = ETH_CMD_CUSTOM_MAC_CMDS_OFFSET,  /*!< Enable/Disable IEEE1588 PTP time stamping */
+    ETH_MAC_DM9058_CMD_S_PTP_TIME,                                    /*!< Set PTP time */
+    ETH_MAC_DM9058_CMD_G_PTP_TIME,                                    /*!< Get PTP time */
+    ETH_MAC_DM9058_CMD_ADJ_PTP_FREQ,                                  /*!< Adjust PTP frequency (ppb) */
+    ETH_MAC_DM9058_CMD_ADJ_PTP_TIME,                                  /*!< Adjust PTP time offset */
+    ETH_MAC_DM9058_CMD_G_TX_TIMESTAMP,                                /*!< Get TX timestamp */
+    ETH_MAC_DM9058_CMD_S_PTP_TRANSPORT,                               /*!< Set PTP transport type */
+} eth_mac_dm9058_io_cmd_t;
+
 /**
  * @brief Default DM9058 specific configuration
  *
