@@ -178,7 +178,6 @@ typedef struct {
 /**
  * @brief DM9058 PTP network transport type
  *
- * @note The DM9058 MAC driver enables IEEE 1588 hardware only for @ref DM9058_PTP_TRANSPORT_IEEE_802_3 (L2).
  */
 typedef enum {
     DM9058_PTP_TRANSPORT_UDP_IPV4 = 0,   /*!< PTP over UDP/IPv4 */
