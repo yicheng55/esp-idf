@@ -197,6 +197,7 @@ typedef enum {
     ETH_MAC_DM9058_CMD_ADJ_PTP_TIME,                                  /*!< Adjust PTP time offset */
     ETH_MAC_DM9058_CMD_G_TX_TIMESTAMP,                                /*!< Get TX timestamp */
     ETH_MAC_DM9058_CMD_S_PTP_TRANSPORT,                               /*!< Set PTP transport type */
+    ETH_MAC_DM9058_CMD_S_PTP_TWO_STEP_SYNC,                          /*!< bool *: true = two-step SYNC (capture TX ts + Follow_Up); false = one-step SYNC (HW timestamp insert) */
 } eth_mac_dm9058_io_cmd_t;
 
 /**

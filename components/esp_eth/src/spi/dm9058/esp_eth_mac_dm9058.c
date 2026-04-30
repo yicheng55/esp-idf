@@ -478,14 +478,16 @@ static esp_err_t dm9058_ptp_enable(emac_dm9058_t *emac, bool enable)
 {
     if (enable) {
         esp_err_t ret = esp_eth_ptp_dm9058_enable(&emac->ptp, true,
-                                                  (esp_eth_ptp_dm9058_transport_t)emac->ptp_transport);
+                                                  (esp_eth_ptp_dm9058_transport_t)emac->ptp_transport,
+                                                  !emac->ptp_two_step_mode);
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "PTP enabled (transport=%d)", emac->ptp_transport);
+            ESP_LOGI(TAG, "PTP enabled (transport=%d, two_step_sync=%d)", emac->ptp_transport, emac->ptp_two_step_mode);
         }
         return ret;
     }
     esp_err_t ret = esp_eth_ptp_dm9058_enable(&emac->ptp, false,
-                                              (esp_eth_ptp_dm9058_transport_t)emac->ptp_transport);
+                                              (esp_eth_ptp_dm9058_transport_t)emac->ptp_transport,
+                                              false);
     if (ret == ESP_OK) {
         ESP_LOGI(TAG, "PTP disabled");
     }
@@ -565,6 +567,15 @@ static esp_err_t emac_dm9058_custom_ioctl(esp_eth_mac_t *mac, int cmd, void *dat
             break;
         }
         emac->ptp_transport = *transport;
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_S_PTP_TWO_STEP_SYNC: {
+        bool *two_step = (bool *)data;
+        ESP_GOTO_ON_FALSE(two_step, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+        emac->ptp_two_step_mode = *two_step;
+        if (emac->ptp.enabled) {
+            ret = esp_eth_ptp_dm9058_update_hw_one_step_tx(&emac->ptp, !emac->ptp_two_step_mode);
+        }
         break;
     }
     default:
@@ -905,10 +916,17 @@ static esp_err_t emac_dm9058_transmit_ctrl_vargs(esp_eth_mac_t *mac, void *ctrl,
 
     eth_mac_time_t *ts = (eth_mac_time_t *)ctrl;
     if (ts != NULL && emac->ptp.initialized && emac->ptp.enabled) {
-        esp_eth_ptp_dm9058_time_t ptp_ts;
-        if (esp_eth_ptp_dm9058_get_tx_timestamp(&emac->ptp, &ptp_ts) == ESP_OK) {
-            ts->seconds = ptp_ts.seconds;
-            ts->nanoseconds = ptp_ts.nanoseconds;
+        esp_eth_ptp_dm9058_tx_config_t tx_cfg = { 0 };
+        if (esp_eth_ptp_dm9058_parse_tx_packet(buf, length, emac->ptp_two_step_mode, &tx_cfg) == ESP_OK &&
+                tx_cfg.enable_timestamp_capture) {
+            esp_eth_ptp_dm9058_time_t ptp_ts;
+            if (esp_eth_ptp_dm9058_get_tx_timestamp(&emac->ptp, &ptp_ts) == ESP_OK) {
+                ts->seconds = ptp_ts.seconds;
+                ts->nanoseconds = ptp_ts.nanoseconds;
+            } else {
+                ts->seconds = 0;
+                ts->nanoseconds = 0;
+            }
         } else {
             ts->seconds = 0;
             ts->nanoseconds = 0;
@@ -1239,7 +1257,7 @@ esp_eth_mac_t *esp_eth_mac_new_dm9058(const eth_dm9058_config_t *dm9058_config, 
     emac->parent.rm_mac_filter = emac_dm9058_rm_mac_filter;
     emac->parent.custom_ioctl = emac_dm9058_custom_ioctl;
     emac->ptp_transport = DM9058_PTP_TRANSPORT_IEEE_802_3;
-#if defined(CONFIG_NETUTILS_PTPD_TWOSTEP_SYNC) || defined(CONFIG_NETUTILS_PTPD)
+#if defined(CONFIG_NETUTILS_PTPD_TWOSTEP_SYNC) && CONFIG_NETUTILS_PTPD_TWOSTEP_SYNC
     emac->ptp_two_step_mode = true;
 #else
     emac->ptp_two_step_mode = false;

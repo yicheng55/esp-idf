@@ -117,7 +117,8 @@ esp_err_t esp_eth_ptp_dm9058_init(esp_eth_ptp_dm9058_t *ptp, void *io_ctx, const
     return ESP_OK;
 }
 
-esp_err_t esp_eth_ptp_dm9058_enable(esp_eth_ptp_dm9058_t *ptp, bool enable, esp_eth_ptp_dm9058_transport_t transport)
+esp_err_t esp_eth_ptp_dm9058_enable(esp_eth_ptp_dm9058_t *ptp, bool enable, esp_eth_ptp_dm9058_transport_t transport,
+                                    bool hw_one_step_tx)
 {
     ESP_RETURN_ON_FALSE(ptp != NULL && ptp->initialized, ESP_ERR_INVALID_STATE, "dm9058.ptp", "ptp not initialized");
 
@@ -148,11 +149,26 @@ esp_err_t esp_eth_ptp_dm9058_enable(esp_eth_ptp_dm9058_t *ptp, bool enable, esp_
     ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_ENR, DM9058_PTP_TCR_ENABLE), err, "dm9058.ptp", "ptp enable failed");
     ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_TCR, 0), err, "dm9058.ptp", "clear tx control failed");
     ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_RXCR, PTP_RXCR_ENABLE | PTP_RXCR_MCAST), err, "dm9058.ptp", "set rx timestamp mode failed");
-    ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_ONESTEP, 0), err, "dm9058.ptp", "disable one-step failed");
+    ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_ONESTEP, hw_one_step_tx ? 1U : 0U), err, "dm9058.ptp", "set PTP one-step TX register failed");
     ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_TSOFF, ts_offset), err, "dm9058.ptp", "set ts offset failed");
     ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_CSOFF, checksum_offset), err, "dm9058.ptp", "set checksum offset failed");
     ptp->enabled = true;
     ptp->last_rate = 0;
+
+err:
+    dm9058_ptp_unlock_if_needed(ptp, locked);
+    return ret;
+}
+
+esp_err_t esp_eth_ptp_dm9058_update_hw_one_step_tx(esp_eth_ptp_dm9058_t *ptp, bool hw_one_step_tx)
+{
+    ESP_RETURN_ON_FALSE(ptp != NULL && ptp->initialized && ptp->enabled, ESP_ERR_INVALID_STATE, "dm9058.ptp", "ptp not enabled");
+
+    esp_err_t ret = ESP_OK;
+    bool locked = false;
+
+    ESP_GOTO_ON_ERROR(dm9058_ptp_try_lock(ptp, &locked), err, "dm9058.ptp", "lock timeout");
+    ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_ONESTEP, hw_one_step_tx ? 1U : 0U), err, "dm9058.ptp", "set PTP one-step TX register failed");
 
 err:
     dm9058_ptp_unlock_if_needed(ptp, locked);
@@ -357,9 +373,7 @@ esp_err_t esp_eth_ptp_dm9058_parse_tx_packet(const uint8_t *packet, size_t len, 
         break;
     case ESP_ETH_PTP_DM9058_MSG_DELAY_REQ:
         config->enable_timestamp_capture = true;
-        if (!use_two_step) {
-            config->enable_onestep_insert = true;
-        }
+        config->enable_onestep_insert = true;
         break;
     case ESP_ETH_PTP_DM9058_MSG_PDELAY_REQ:
     case ESP_ETH_PTP_DM9058_MSG_PDELAY_RESP:
