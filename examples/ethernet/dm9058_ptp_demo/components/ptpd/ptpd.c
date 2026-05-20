@@ -331,7 +331,7 @@ struct ptp_state_s
 static const char *TAG = "ptpd";
 /* Set to 0 to fully disable ptpd logs in this file. */
 #ifndef CONFIG_NETUTILS_PTPD_LOG_ENABLE
-#define CONFIG_NETUTILS_PTPD_LOG_ENABLE 1
+#define CONFIG_NETUTILS_PTPD_LOG_ENABLE 0
 #endif
 
 #if CONFIG_NETUTILS_PTPD_LOG_ENABLE
@@ -510,7 +510,7 @@ static int ptp_net_send(FAR struct ptp_state_s *state, void *ptp_msg, uint16_t p
       if (msg_type == PTP_MSGTYPE_SYNC || msg_type == PTP_MSGTYPE_FOLLOW_UP ||
           msg_type == PTP_MSGTYPE_DELAY_REQ || msg_type == PTP_MSGTYPE_DELAY_RESP)
         {
-          ESP_LOGI(TAG, "[PTP TX][L2] %s seq=%u ts=%lld.%09ld",
+          ESP_LOGD(TAG, "[PTP TX][L2] %s seq=%u ts=%lld.%09ld",
                    ptp_msgtype_name(msg_type), (unsigned)ptp_get_sequence(hdr),
                    ts ? (long long)ts->tv_sec : 0LL, ts ? ts->tv_nsec : 0L);
         }
@@ -565,14 +565,14 @@ static int ptp_net_recv(FAR struct ptp_state_s *state, void *ptp_msg, uint16_t p
 
     if (ptp_timespec_is_valid(ts))
       {
-        ESP_LOGI(TAG, "[PTP RX][L2] %s seq=%u hw_ts=%lld.%09ld", ptp_msgtype_name(msg_type),
+        ESP_LOGD(TAG, "[PTP RX][L2] %s seq=%u hw_ts=%lld.%09ld", ptp_msgtype_name(msg_type),
                  (unsigned)ptp_get_sequence((struct ptp_header_s *)&eth_frame[ETH_HEADER_LEN]),
                  (long long)ts->tv_sec, ts->tv_nsec);
       }
     else if (msg_type == PTP_MSGTYPE_DELAY_REQ || msg_type == PTP_MSGTYPE_DELAY_RESP)
       {
         /* General-event frames may lack RX hardware timestamping; still log E2E. */
-        ESP_LOGI(TAG, "[PTP-DEBUG][E2E] %s L2 RX seq=%u (no valid HW RX ts — check PTP RX timestamp filter)",
+        ESP_LOGD(TAG, "[PTP-DEBUG][E2E] %s L2 RX seq=%u (no valid HW RX ts — check PTP RX timestamp filter)",
                  ptp_msgtype_name(msg_type),
                  (unsigned)ptp_get_sequence((struct ptp_header_s *)&eth_frame[ETH_HEADER_LEN]));
       }
@@ -1533,7 +1533,7 @@ static int ptp_send_delay_req(FAR struct ptp_state_s *state)
   timespec_to_ptp_format(&state->delayreq_time, req.origintimestamp);
 
 #ifdef ESP_PTP
-  ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Req TX seq=%u domain=%u len=%u originT=%lld.%09ld",
+  ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Req TX seq=%u domain=%u len=%u originT=%lld.%09ld",
            (unsigned)ptp_get_sequence(&req.header),
            (unsigned)req.header.domain, (unsigned)sizeof(req),
            (long long)state->delayreq_time.tv_sec, state->delayreq_time.tv_nsec);
@@ -1569,7 +1569,7 @@ static int ptp_send_delay_req(FAR struct ptp_state_s *state)
       ptpinfo("Sent delay req, seq %ld\n",
               (long)ptp_get_sequence(&req.header));
 #ifdef ESP_PTP
-      ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Req TX ok seq=%u (see [PTP TX][L2] for HW ts)",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Req TX ok seq=%u (see [PTP TX][L2] for HW ts)",
                (unsigned)ptp_get_sequence(&req.header));
 #endif
     }
@@ -1627,7 +1627,7 @@ static int ptp_periodic_send(FAR struct ptp_state_s *state)
 
       if (timespec_to_ms(&delta) > state->delayreq_interval * MSEC_PER_SEC)
         {
-          ESP_LOGI(TAG, "[PTP-DEBUG][E2E] periodic Delay_Req trigger interval=%ld s delta_ms=%d",
+          ESP_LOGD(TAG, "[PTP-DEBUG][E2E] periodic Delay_Req trigger interval=%ld s delta_ms=%d",
                    state->delayreq_interval, timespec_to_ms(&delta));
           ptp_send_delay_req(state);
         }
@@ -1641,7 +1641,7 @@ static int ptp_periodic_send(FAR struct ptp_state_s *state)
       if (s_last_defer_log_us == 0 || (now_us - s_last_defer_log_us) > 5000000)
         {
           s_last_defer_log_us = now_us;
-          ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Req waiting: can_send_delayreq=false "
+          ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Req waiting: can_send_delayreq=false "
                         "(need stable offset after Follow_Up; large clock step resets this)");
         }
     }
@@ -2157,7 +2157,7 @@ static int ptp_process_delay_req(FAR struct ptp_state_s *state,
   resp.header.logmessageinterval = CONFIG_NETUTILS_PTPD_DELAYRESP_INTERVAL;
 
 #ifdef ESP_PTP
-  ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Resp TX (answer Req) seq=%u reqPort=%02x%02x",
+  ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp TX (answer Req) seq=%u reqPort=%02x%02x",
            (unsigned)ptp_get_sequence(&msg->header),
            (unsigned)msg->header.sourceportindex[0],
            (unsigned)msg->header.sourceportindex[1]);
@@ -2185,7 +2185,7 @@ static int ptp_process_delay_req(FAR struct ptp_state_s *state,
       ptpinfo("Sent delay resp, seq %ld\n",
               (long)ptp_get_sequence(&msg->header));
 #ifdef ESP_PTP
-      ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Resp TX ok seq=%u", (unsigned)ptp_get_sequence(&msg->header));
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp TX ok seq=%u", (unsigned)ptp_get_sequence(&msg->header));
 #endif
     }
 
@@ -2204,7 +2204,7 @@ static int ptp_process_delay_resp(FAR struct ptp_state_s *state,
   if (!state->selected_source_valid)
     {
 #ifdef ESP_PTP
-      ESP_LOGW(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: no GM seq=%u",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: no GM seq=%u",
                (unsigned)ptp_get_sequence(&msg->header));
 #endif
       return OK;
@@ -2215,7 +2215,7 @@ static int ptp_process_delay_resp(FAR struct ptp_state_s *state,
               sizeof(msg->header.sourceidentity)) != 0)
     {
 #ifdef ESP_PTP
-      ESP_LOGW(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: sourceId != selected GM seq=%u",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: sourceId != selected GM seq=%u",
                (unsigned)ptp_get_sequence(&msg->header));
 #endif
       return OK;
@@ -2226,7 +2226,7 @@ static int ptp_process_delay_resp(FAR struct ptp_state_s *state,
              sizeof(msg->reqidentity)) != 0)
     {
 #ifdef ESP_PTP
-      ESP_LOGW(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: reqIdentity != ours seq=%u",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: reqIdentity != ours seq=%u",
                (unsigned)ptp_get_sequence(&msg->header));
 #endif
       return OK;
@@ -2239,7 +2239,7 @@ static int ptp_process_delay_resp(FAR struct ptp_state_s *state,
       ptpwarn("Ignoring out-of-sequence delay resp (%d vs. expected %d)\n",
               (int)sequence, (int)state->delay_req_seq);
 #ifdef ESP_PTP
-      ESP_LOGW(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: seq %u != pending Delay_Req %u",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp dropped: seq %u != pending Delay_Req %u",
                (unsigned)sequence, (unsigned)state->delay_req_seq);
 #endif
       return OK;
@@ -2269,7 +2269,7 @@ static int ptp_process_delay_resp(FAR struct ptp_state_s *state,
       ptpinfo("[PTP E2E] Delay_Resp seq=%u path_delay=%ld ns avg=%ld ns\n",
         (unsigned)sequence, (long)path_delay, (long)state->path_delay_ns);
 #ifdef ESP_PTP
-      ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Resp OK seq=%u path_delay=%lld ns avg=%ld ns next_int_log=%d",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp OK seq=%u path_delay=%lld ns avg=%ld ns next_int_log=%d",
                (unsigned)sequence, (long long)path_delay, (long)state->path_delay_ns,
                (int)msg->header.logmessageinterval);
 #endif
@@ -2279,7 +2279,7 @@ static int ptp_process_delay_resp(FAR struct ptp_state_s *state,
       ptpwarn("Path delay out of range: %lld ns\n",
               (long long)path_delay);
 #ifdef ESP_PTP
-      ESP_LOGW(TAG, "[PTP-DEBUG][E2E] Delay_Resp seq=%u path_delay out of range: %lld ns (max %d)",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp seq=%u path_delay out of range: %lld ns (max %d)",
                (unsigned)sequence, (long long)path_delay, CONFIG_NETUTILS_PTPD_MAX_PATH_DELAY_NS);
 #endif
     }
@@ -2598,7 +2598,7 @@ static int ptp_process_rx_packet(FAR struct ptp_state_s *state,
       ptpinfo("Got delay-resp, seq %ld\n",
               (long)ptp_get_sequence(&state->rxbuf.header));
 #ifdef ESP_PTP
-      ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Resp RX msg=0x%02x domain=%u seq=%u",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Resp RX msg=0x%02x domain=%u seq=%u",
                (unsigned)state->rxbuf.header.messagetype,
                (unsigned)state->rxbuf.header.domain,
                (unsigned)ptp_get_sequence(&state->rxbuf.header));
@@ -2611,7 +2611,7 @@ static int ptp_process_rx_packet(FAR struct ptp_state_s *state,
       ptpinfo("Got delay req, seq %ld\n",
               (long)ptp_get_sequence(&state->rxbuf.header));
 #ifdef ESP_PTP
-      ESP_LOGI(TAG, "[PTP-DEBUG][E2E] Delay_Req RX msg=0x%02x domain=%u seq=%u",
+      ESP_LOGD(TAG, "[PTP-DEBUG][E2E] Delay_Req RX msg=0x%02x domain=%u seq=%u",
                (unsigned)state->rxbuf.header.messagetype,
                (unsigned)state->rxbuf.header.domain,
                (unsigned)ptp_get_sequence(&state->rxbuf.header));
