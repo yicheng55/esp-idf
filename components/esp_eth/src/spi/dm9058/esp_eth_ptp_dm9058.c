@@ -212,6 +212,10 @@ esp_err_t esp_eth_ptp_dm9058_set_time(esp_eth_ptp_dm9058_t *ptp, const esp_eth_p
     ESP_GOTO_ON_ERROR(dm9058_ptp_write_bytes(ptp, DM9058_PTP_DATA, raw, sizeof(raw)), err, "dm9058.ptp", "write time failed");
     ESP_GOTO_ON_ERROR(ptp->ops.reg_write(ptp->io_ctx, DM9058_PTP_ENR, DM9058_PTP_TCR_APPLY_SET_TIME), err, "dm9058.ptp", "apply set time failed");
     ptp->last_rate = 0;
+    /* Notify PPS / any registered restart hook after successful set_time */
+    if (ptp->on_restart != NULL) {
+        ptp->on_restart(ptp->on_restart_ctx);
+    }
 
 err:
     dm9058_ptp_unlock_if_needed(ptp, locked);

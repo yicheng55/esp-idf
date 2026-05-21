@@ -38,6 +38,10 @@ typedef struct {
     bool initialized;
     bool enabled;
     int64_t last_rate;
+    /** Optional hook called automatically after a successful set_time().
+     *  Register via esp_eth_ptp_pps_dm9058_init() — do not set manually. */
+    void (*on_restart)(void *ctx);
+    void *on_restart_ctx;
 } esp_eth_ptp_dm9058_t;
 
 typedef enum {
