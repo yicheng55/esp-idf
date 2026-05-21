@@ -1885,12 +1885,26 @@ static int ptp_update_local_clock(FAR struct ptp_state_s *state,
        * Account for delay since packet was received.
        */
 
+#ifdef ESP_PTP
+      /* Apply the offset atomically on the HW clock (read-add-write under SPI
+       * lock), then read back the result for logging and state bookkeeping. */
+      eth_dm9058_ptp_time_t hw_offset = {
+        .seconds     = (uint32_t)(int32_t)(delta_ns / 1000000000LL),
+        .nanoseconds = (uint32_t)(int32_t)(delta_ns % 1000000000LL),
+      };
+      ret = esp_eth_ioctl(state->eth_handle,
+                          ETH_MAC_DM9058_CMD_ADJ_PTP_TIME,
+                          &hw_offset) == ESP_OK ? OK : ERROR;
+      struct timespec new_time;
+      ptp_gettime(state, &new_time); /* read back adjusted time */
+#else
       struct timespec new_time;
       ptp_gettime(state, &new_time);
 
       clock_timespec_subtract(&new_time, local_timestamp, &new_time);
       clock_timespec_add(&new_time, remote_timestamp, &new_time);
       ret = ptp_settime(state, &new_time);
+#endif // ESP_PTP
 
       /* Reinitialize drift adjustment parameters */
 
@@ -1911,7 +1925,7 @@ static int ptp_update_local_clock(FAR struct ptp_state_s *state,
         }
       else
         {
-          ptperr("ptp_settime() failed: %d\n", errno);
+          ptperr("clock step failed: %d\n", errno);
         }
     }
   else
@@ -2806,6 +2820,12 @@ static int ptp_daemon(int argc, FAR char** argv)
   ptp_setup_sighandlers(state);
 #endif // !ESP_PTP
 
+#ifdef ESP_PTP
+  /* Initialise the DM9058 hardware PPS output (1 PPS, GPIO pin from
+   * Kconfig; default config starts 1 s after the next set_time). */
+  esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_PPS_INIT, NULL);
+#endif // ESP_PTP
+
   pollfds[0].events = POLLIN;
 #if ESP_PTP_UDP_IPV4
   pollfds[0].fd = state->event_socket;
@@ -2913,6 +2933,11 @@ static int ptp_daemon(int argc, FAR char** argv)
         }
 #endif
       ptp_periodic_send(state);
+
+#ifdef ESP_PTP
+      /* Re-arm PPS hardware pulse generator if the done-flag is set. */
+      esp_eth_ioctl(state->eth_handle, ETH_MAC_DM9058_CMD_PPS_UPDATE, NULL);
+#endif // ESP_PTP
 
       state->selected_source_valid = is_selected_source_valid(state);
       ptp_process_statusreq(state);

@@ -31,6 +31,7 @@
 #include "esp_timer.h"
 #include "esp_rom_crc.h"
 #include "esp_eth_ptp_dm9058.h"
+#include "esp_eth_ptp_pps_dm9058.h"
 
 static const char *TAG = "dm9058.mac";
 
@@ -84,6 +85,8 @@ typedef struct {
     esp_eth_ptp_dm9058_t ptp;
     eth_dm9058_ptp_transport_t ptp_transport;
     bool ptp_two_step_mode;
+    /* PPS output (uses PTP GPIO pulse generator) */
+    esp_eth_ptp_pps_dm9058_t pps;
 } emac_dm9058_t;
 
 static void *dm9058_spi_init(const void *spi_config)
@@ -576,6 +579,15 @@ static esp_err_t emac_dm9058_custom_ioctl(esp_eth_mac_t *mac, int cmd, void *dat
         if (emac->ptp.enabled) {
             ret = esp_eth_ptp_dm9058_update_hw_one_step_tx(&emac->ptp, !emac->ptp_two_step_mode);
         }
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_PPS_INIT: {
+        esp_eth_ptp_pps_dm9058_config_t *cfg = (esp_eth_ptp_pps_dm9058_config_t *)data;
+        ret = esp_eth_ptp_pps_dm9058_init(&emac->pps, &emac->ptp, cfg);
+        break;
+    }
+    case ETH_MAC_DM9058_CMD_PPS_UPDATE: {
+        esp_eth_ptp_pps_dm9058_update(&emac->pps);
         break;
     }
     default:

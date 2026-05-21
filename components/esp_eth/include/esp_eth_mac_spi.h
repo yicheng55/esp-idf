@@ -198,6 +198,8 @@ typedef enum {
     ETH_MAC_DM9058_CMD_G_TX_TIMESTAMP,                                /*!< Get TX timestamp */
     ETH_MAC_DM9058_CMD_S_PTP_TRANSPORT,                               /*!< Set PTP transport type */
     ETH_MAC_DM9058_CMD_S_PTP_TWO_STEP_SYNC,                          /*!< bool *: true = two-step SYNC (capture TX ts + Follow_Up); false = one-step SYNC (HW timestamp insert) */
+    ETH_MAC_DM9058_CMD_PPS_INIT,                                      /*!< Init PPS output; data = esp_eth_ptp_pps_dm9058_config_t* (NULL = 1PPS default) */
+    ETH_MAC_DM9058_CMD_PPS_UPDATE,                                    /*!< Poll PPS done-flag and re-arm if needed; data = NULL */
 } eth_mac_dm9058_io_cmd_t;
 
 /**
