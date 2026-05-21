@@ -12,7 +12,6 @@
 #include "esp_netif.h"
 #include "ethernet_init.h"
 #include "esp_vfs_l2tap.h"
-#include "driver/gpio.h"
 #include "freertos/event_groups.h"
 #include "ptpd.h"
 
@@ -27,8 +26,6 @@ static const char *TAG = "ptp_example";
 
 static EventGroupHandle_t s_eth_event_group;
 
-static struct timespec s_next_time;
-static bool s_gpio_level;
 static esp_eth_handle_t *s_eth_handles;
 static uint8_t s_eth_port_cnt;
 
@@ -144,30 +141,6 @@ void init_ethernet_and_netif(void)
 #endif
 }
 
-static bool ts_callback(esp_eth_mediator_t *eth, void *user_args)
-{
-    (void)eth;
-    (void)user_args;
-    gpio_set_level(CONFIG_EXAMPLE_PTP_PULSE_GPIO, s_gpio_level ^= 1);
-
-    struct timespec interval = {
-        .tv_sec = 0,
-        .tv_nsec = CONFIG_EXAMPLE_PTP_PULSE_WIDTH_NS
-    };
-    timespecadd(&s_next_time, &interval, &s_next_time);
-
-    struct timespec curr_time;
-    esp_eth_clock_gettime(CLOCK_PTP_SYSTEM, &curr_time);
-    if (timespeccmp(&s_next_time, &curr_time, >)) {
-        esp_eth_clock_set_target_time(CLOCK_PTP_SYSTEM, &s_next_time);
-    }
-
-    ESP_LOGD(TAG, "PTP pulse: curr %llu.%09lu next %llu.%09lu",
-             (unsigned long long)curr_time.tv_sec, (unsigned long)curr_time.tv_nsec,
-             (unsigned long long)s_next_time.tv_sec, (unsigned long)s_next_time.tv_nsec);
-    return false;
-}
-
 void app_main(void)
 {
     init_ethernet_and_netif();
@@ -206,74 +179,23 @@ void app_main(void)
 #if CONFIG_EXAMPLE_PTP_TRANSPORT_IPV4
     ptpd_register_eth_handle(s_eth_handles[0]);
 #endif
-    int pid = ptpd_start("ETH_0");
+    ptpd_start("ETH_0");
 
+    // Wait until PTP clock receives its first time-set from the master
     struct timespec cur_time = {0, 0};
-    // wait for the clock to be available
-    ESP_LOGI(TAG, "init.s curr time: %llu.%09lu", cur_time.tv_sec, cur_time.tv_nsec);
-
+    ESP_LOGI(TAG, "Waiting for PTP clock sync...");
     while (esp_eth_clock_gettime(CLOCK_PTP_SYSTEM, &cur_time) == -1) {
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+    ESP_LOGI(TAG, "PTP clock available: %llu.%09lu",
+             (unsigned long long)cur_time.tv_sec, (unsigned long)cur_time.tv_nsec);
 
-    ESP_LOGI(TAG, "init.e curr time: %llu.%09lu", cur_time.tv_sec, cur_time.tv_nsec);
-
-    if (esp_eth_clock_register_target_cb(CLOCK_PTP_SYSTEM, ts_callback) != 0) {
-        ESP_LOGE(TAG, "esp_eth_clock_register_target_cb failed");
-        return;
-    }
-
-    // initialize output pin
-    gpio_config_t gpio_out_cfg = {
-        .pin_bit_mask = (1ULL << CONFIG_EXAMPLE_PTP_PULSE_GPIO),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
-    gpio_config(&gpio_out_cfg);
-    gpio_set_level(CONFIG_EXAMPLE_PTP_PULSE_GPIO, 0);
-
-    bool first_pass = true;
-    bool clock_source_valid = false;
-    bool clock_source_valid_last = false;
-    int32_t clock_source_valid_cnt = 0;
+    // DM9058 hardware PPS output is managed by the ptpd task
+    // (ETH_MAC_DM9058_CMD_PPS_INIT / PPS_UPDATE called in ptp_daemon)
     while (1) {
-        struct ptpd_status_s ptp_status;
-        // if valid PTP status
-        if (ptpd_status(pid, &ptp_status) == 0) {
-            if (ptp_status.clock_source_valid) {
-                clock_source_valid_cnt++;
-            } else {
-                clock_source_valid_cnt = 0;
-            }
-        } else {
-            clock_source_valid_cnt = 0;
-        }
-        // consider the source valid only after n consequent intervals to be sure clock was synced
-        if (clock_source_valid_cnt > 2) {
-            clock_source_valid = true;
-        } else {
-            clock_source_valid = false;
-        }
-        // source validity changed => resync the pulse for ptp slave OR when the first pass to PTP master
-        // starts generating its pulses
-        if ((clock_source_valid == true && clock_source_valid_last == false) || first_pass) {
-            first_pass = false;
-            // get the most recent (now synced) time
-            esp_eth_clock_gettime(CLOCK_PTP_SYSTEM, &cur_time);
-            // compute the next target time
-            s_next_time.tv_sec = 1;
-            timespecadd(&s_next_time, &cur_time, &s_next_time);
-            s_next_time.tv_nsec = CONFIG_EXAMPLE_PTP_PULSE_WIDTH_NS;
-            ESP_LOGI(TAG, "PTP slave locked: source_valid=%d cnt=%" PRId32, clock_source_valid, clock_source_valid_cnt);
-            ESP_LOGI(TAG, "Starting Pulse train");
-            ESP_LOGI(TAG, "curr time: %llu.%09lu", cur_time.tv_sec, cur_time.tv_nsec);
-            ESP_LOGI(TAG, "next time: %llu.%09lu", s_next_time.tv_sec, s_next_time.tv_nsec);
-            s_gpio_level = 0;
-            gpio_set_level(CONFIG_EXAMPLE_PTP_PULSE_GPIO, s_gpio_level);
-            esp_eth_clock_set_target_time(CLOCK_PTP_SYSTEM, &s_next_time);
-        }
-        clock_source_valid_last = clock_source_valid;
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        esp_eth_clock_gettime(CLOCK_PTP_SYSTEM, &cur_time);
+        ESP_LOGI(TAG, "PTP time: %llu.%09lu",
+                 (unsigned long long)cur_time.tv_sec, (unsigned long)cur_time.tv_nsec);
     }
 }
